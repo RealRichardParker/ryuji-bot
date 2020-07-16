@@ -9,6 +9,10 @@
   "author": "RealRichardParker",
   "license": "ISC",
   "dependencies": {
-    "discord.js": "^12.2.0"
+    "discord.js": "^12.2.0",
+    "mocha": "^8.0.1"
+  },
+  "scripts": {
+      "test": "mocha"
   }
 }
