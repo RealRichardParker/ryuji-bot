@@ -4,15 +4,13 @@
   "description": "Simple discord bot to record server streaming stats",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha"
   },
   "author": "RealRichardParker",
   "license": "ISC",
   "dependencies": {
     "discord.js": "^12.2.0",
-    "mocha": "^8.0.1"
-  },
-  "scripts": {
-      "test": "mocha"
+    "mocha": "^8.0.1",
+    "pg": "^8.3.0"
   }
 }

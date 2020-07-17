@@ -1,3 +1,6 @@
 let bot = require('./bot.js');
 
-bot.start();
+
+let ryuji = new bot.Bot(process.env.BOT_TOKEN, process.env.DATABASE_URL);
+
+ryuji.start();
