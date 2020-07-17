@@ -46,16 +46,8 @@ module.exports = {
     }
 }
 
-
-
 discordClient.on('ready', () => {
     console.log('Logged in as', discordClient.user.tag);
-});
-
-discordClient.on('message', msg => {
-    if (msg.content === 'ping') {
-        msg.reply('pong');
-    }
 });
 
 discordClient.on('voiceStateUpdate', (oldState, newState) => {
@@ -65,5 +57,12 @@ discordClient.on('voiceStateUpdate', (oldState, newState) => {
     if (result.bool) {
         console.log('time to save stuff in the db!');
         
+    }
+});
+
+discordClient.on('message', msg => {
+    console.dir(msg);
+    if (msg.content.includes('<:for_real:726277469132292106>')) {
+        msg.react(msg.guild.emojis.cache.get('726277469132292106'));
     }
 });
