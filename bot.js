@@ -1,12 +1,6 @@
 const Discord = require('discord.js');
 const discordClient = new Discord.Client();
-const pg = require('pg');
-const pgClient = new pg.Client({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-        rejectUnauthorized: false
-    }
-});
+const db = require('./database.js');
 
 module.exports = {
     shouldRecord: (oldState, newState) => {
@@ -38,10 +32,16 @@ module.exports = {
     },
     Bot: function(bot_token, database_url) {
         this.bot_token = bot_token;
-        this.database_url = database_url;
+		if (database_url){
+            console.log('in prod env!');
+            this.dbClient = new db.dbClient(database_url);
+        } else {
+            console.log('in test env!');
+            this.dbClient = new db.dbClient();
+        }
         this.start = () => {
             discordClient.login(this.bot_token);
-            pgClient.connect();
+            this.dbClient.setup_db();
         }
     }
 }
@@ -54,14 +54,13 @@ discordClient.on('voiceStateUpdate', (oldState, newState) => {
     let oldMember = oldState.member;
     let newMember = newState.member;
     let result = module.exports.shouldRecord(oldState, newState);
+    console.dir(newState);
     if (result.bool) {
         console.log('time to save stuff in the db!');
-        
     }
 });
 
 discordClient.on('message', msg => {
-    console.dir(msg);
     if (msg.content.includes('<:for_real:726277469132292106>')) {
         msg.react(msg.guild.emojis.cache.get('726277469132292106'));
     }
