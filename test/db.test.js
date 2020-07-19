@@ -47,8 +47,9 @@ describe('DBClient', () => {
         it('should setup the stream_time, streamed_games tables', async () => {
             await client.query(`
                 CREATE TABLE stream_sessions(
-                    discord_id VARCHAR (16) PRIMARY KEY,
-                    timestamp TIMESTAMP NOT NULL
+                    ${db.column_names.id} VARCHAR (16) PRIMARY KEY,
+                    timestamp TIMESTAMP NOT NULL,
+                    game_name VARCHAR (255)
                 )
             `);
             let res = await client.query(`
