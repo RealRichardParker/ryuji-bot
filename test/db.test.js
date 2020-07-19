@@ -2,6 +2,15 @@ const assert = require('assert');
 const db = require('../database.js');
 const { Client } = require('pg');
 
+const test_id_1 = '1234567890'
+const test_id_2 = '0987654321'
+
+let PostgresInterval = function(days, hours, minutes) {
+    if (hours) this.hours = hours;
+    if (days) this.days = days;
+    if (minutes) this.minutes = minutes;
+}
+
 describe('DBClient', () => {
     let client = new Client({
         user: 'ryuji',
@@ -12,19 +21,19 @@ describe('DBClient', () => {
     });
     let func = async () => await client.connect();
     func();
+    afterEach( async ()=> {
+            Object.entries(db.table_names).forEach(async name => {
+                await client.query(`DROP TABLE IF EXISTS ${name}`);
+            });
+        let res = await client.query(`
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+            ORDER BY table_name;
+            `);
+        assert.equal(0, res.rowCount);
+    });
     describe('setup', ()=> {
-        afterEach( async ()=> {
-                Object.entries(db.table_names).forEach(async name => {
-                    await client.query(`DROP TABLE IF EXISTS ${name}`);
-                });
-            let res = await client.query(`
-				SELECT table_name
-				FROM information_schema.tables
-				WHERE table_schema = 'public'
-				ORDER BY table_name;
-                `);
-            assert.equal(0, res.rowCount);
-        });
         it('should setup three tables on empty db', async () => {
             let DBClient = new db.dbClient();
             await DBClient.setup_db();
@@ -49,7 +58,7 @@ describe('DBClient', () => {
         it('should setup the stream_time, streamed_games tables', async () => {
             await client.query(`
                 CREATE TABLE stream_sessions(
-                    ${db.column_names.id} VARCHAR (16) PRIMARY KEY,
+                    ${db.col_names.id} VARCHAR (16) PRIMARY KEY,
                     timestamp TIMESTAMP NOT NULL,
                     game_name VARCHAR (255)
                 )
@@ -70,7 +79,7 @@ describe('DBClient', () => {
 				FROM information_schema.tables
 				WHERE table_schema = 'public'
 				ORDER BY table_name;
-                `);
+            `);
             assert.equal(3, res.rowCount);
             table_strings = Object.values(db.table_names);
             res.rows.forEach(item => assert(table_strings.includes(item.table_name)));
@@ -84,12 +93,45 @@ describe('DBClient', () => {
             });
         });
     });
-    describe('addGame', () => {
+    describe('updateTime', () => {
+        let DBClient
         beforeEach(async () => {
-            let DBClient = new db.dbClient();
+            DBClient = new db.dbClient();
+            await DBClient.setup_db();
         });
-        it('should add a game', () => {
+        it('add a new entry', async () => {
+            let start = new Date('May 15, 2004 04:04:00');
+            let end = new Date('May 15, 2004 06:00:00');
+            let result = await DBClient.updateTime(test_id_1, start, end);
             
+            let query_string = `SELECT * FROM ${db.table_names.time_table}
+                                WHERE ${db.col_names.id}=$1`
+            let res = await client.query(query_string, [test_id_1]);
+            
+            assert.equal(1, res.rowCount);
+            let interval = res.rows[0][db.col_names.time_streamed];
+            
+            assert.equal(56, interval.minutes);
+            assert.equal(1, interval.hours);
+        });
+        it('update existing entry', async () => {
+            let query_string = `INSERT INTO ${db.table_names.time_table}
+                                VALUES ($1, $2)`;
+            let start = new Date('May 15, 2004 04:04:00');
+            let end = new Date('May 15, 2004 06:00:00');
+            await client.query(query_string, [test_id_1, db.dateDiff(start, end)]);
+
+            await DBClient.updateTime(test_id_1, start, end);
+
+            query_string = `SELECT * FROM ${db.table_names.time_table}
+                                WHERE ${db.col_names.id}=$1`
+            let res = await client.query(query_string, [test_id_1]);
+            
+            assert.equal(1, res.rowCount);
+            let interval = res.rows[0][db.col_names.time_streamed];
+
+            assert.equal(52, interval.minutes);
+            assert.equal(3, interval.hours);
         });
     });
 });

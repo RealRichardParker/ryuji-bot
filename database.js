@@ -1,7 +1,7 @@
 const { Pool, Client } = require('pg');
 const {format} = require('util');
 
-let column_names = {
+let col_names = {
     id: "discord_id",
     timestamp: "timestamp",
     game_name: "game_name",
@@ -16,7 +16,7 @@ let table_names = {
 
 module.exports = {
     table_names: table_names,
-    column_names: column_names,
+    col_names: col_names,
     dbClient: function(database_url) {
         this.database_url = database_url;
 
@@ -35,7 +35,7 @@ module.exports = {
                 `);
             let created_tables = res.rows.map(obj => obj.table_name);
 
-            console.log('created tables:', created_tables);
+            //console.log('created tables:', created_tables);
             for (key in table_names) {
                 let table_name = table_names[key];
                 if (!created_tables.includes(table_name)) {
@@ -47,25 +47,21 @@ module.exports = {
         // create new stream session if session_id doesn't exist, if session_id does, 
         // remove session from table and update total time played
         this.updateSession = async (discord_id, timestamp, game_name) => {
-            try {
-                let sql_text = `SELECT ${column_names.timestamp} 
-                                FROM ${table_names.session_table} 
-                                WHERE ${column_names.id}=$1`;
-                let res = await this.pool.query(sql_text, [discord_id]);
-                if (res.rowCount === 0) {
-                    sql_text = `INSERT INTO ${table_names.session_table}
-                                VALUES ($1, $2, $3)`;
-                    this.pool.query(sql_text, [discord_id, timestamp, game_name]);
-                } else {
-                    console.log(res.rows);
-                    let start_time = res.rows[0][column_names.timestamp];
-                    let time_streamed = timestamp - start_time;
-                    sql_text = `DELETE FROM ${table_names.session_table}
-                                WHERE ${column_names.id}=$1`;
-                    await this.pool.query(sql_text, [discord_id]);
-                }
-            } catch (err) {
-                console.log(err);
+            let sql_text = `SELECT ${col_names.timestamp} 
+                            FROM ${table_names.session_table} 
+                            WHERE ${col_names.id}=$1`;
+            let res = await this.pool.query(sql_text, [discord_id]);
+            if (res.rowCount === 0) {
+                sql_text = `INSERT INTO ${table_names.session_table}
+                            VALUES ($1, $2, $3)`;
+                this.pool.query(sql_text, [discord_id, timestamp, game_name]);
+            } else {
+                //console.log(res.rows);
+                let start_time = res.rows[0][col_names.timestamp];
+                let delete_text = `DELETE FROM ${table_names.session_table}
+                                   WHERE ${col_names.id}=$1`;
+                await this.pool.query(delete_text, [discord_id]);
+                this.updateTime(discord_id, start_time, timestamp)
             }
         };
 
@@ -89,16 +85,26 @@ module.exports = {
         this.updateGame = (discord_id, game_name, interval) => {
         };
 
+        this.updateTime = (discord_id, start_time, end_time) => {
+            let update_text = `INSERT INTO ${table_names.time_table}
+                               VALUES($1, $2)
+                               ON CONFLICT (${col_names.id})
+                               DO UPDATE 
+                               SET ${col_names.time_streamed} = EXCLUDED.${col_names.time_streamed}+$2`;
+            let interval = module.exports.dateDiff(start_time, end_time);
+            return this.pool.query(update_text, [discord_id, interval]);
+        }
+
         this.getUserGames = async (discord_id) => {
             let sql_text = `SELECT * FROM ${table_names.game_table}
-                            WHERE ${column_names.id}=$1`;
+                            WHERE ${col_names.id}=$1`;
             let res = await this.pool.query(sql_text, [discord_id]);
             return res.rows;
         };
 
         this.getStreamTime = async (discord_id) => {
             let sql_text = `SELECT * FROM ${table_names.time_table}
-                            WHERE ${column_names}=$1`;
+                            WHERE ${col_names}=$1`;
             let res = await this.pool.query(sql_text, [discord_id]);
         };
 
@@ -113,25 +119,25 @@ module.exports = {
             if (table_name === table_names.session_table) {
                 return await this.pool.query(`
                     CREATE TABLE ${table_name}(
-                        ${column_names.discord_id} VARCHAR (16) PRIMARY KEY,
-                        ${column_names.timestamp} TIMESTAMP NOT NULL,
-                        ${column_names.game_name} VARCHAR (255)
+                        ${col_names.id} VARCHAR (16) PRIMARY KEY,
+                        ${col_names.timestamp} TIMESTAMP NOT NULL,
+                        ${col_names.game_name} VARCHAR (255)
                     )
                 `);
             } else if (table_name === table_names.time_table) {
                 return await this.pool.query(`
                     CREATE TABLE ${table_name}(
-                        ${column_names.discord_id} VARCHAR (16) PRIMARY KEY,
-                        ${column_names.time_streamed} INTERVAL NOT NULL
+                        ${col_names.id} VARCHAR (16) PRIMARY KEY,
+                        ${col_names.time_streamed} INTERVAL NOT NULL
                     )
                 `)
             } else if (table_name === table_names.game_table) {
                 return await this.pool.query(`
                     CREATE TABLE ${table_name}(
                         id serial PRIMARY KEY,
-                        ${column_names.game_name} VARCHAR (255) NOT NULL,
-                        ${column_names.time_streamed} INTERVAL NOT NULL,
-                        ${column_names.discord_id} VARCHAR (16) NOT NULL
+                        ${col_names.game_name} VARCHAR (255) NOT NULL,
+                        ${col_names.time_streamed} INTERVAL NOT NULL,
+                        ${col_names.id} VARCHAR (16) NOT NULL
                     )
                 `);
             } else {
