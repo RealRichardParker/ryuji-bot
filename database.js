@@ -1,4 +1,5 @@
 const { Pool, Client } = require('pg');
+const {format} = require('util');
 
 let column_names = {
     id: "discord_id",
@@ -41,17 +42,15 @@ module.exports = {
                     let res = await createTable.call(this, table_name);
                 }
             }
-
-            this.updateSession('some_id', new Date(), 'test_name');
-
-            this.updateSession('some_id', new Date(), 'test_name');
         };
 
         // create new stream session if session_id doesn't exist, if session_id does, 
         // remove session from table and update total time played
         this.updateSession = async (discord_id, timestamp, game_name) => {
             try {
-                let sql_text = `SELECT * FROM ${table_names.session_table} WHERE ${column_names.id}=$1`;
+                let sql_text = `SELECT ${column_names.timestamp} 
+                                FROM ${table_names.session_table} 
+                                WHERE ${column_names.id}=$1`;
                 let res = await this.pool.query(sql_text, [discord_id]);
                 if (res.rowCount === 0) {
                     sql_text = `INSERT INTO ${table_names.session_table}
@@ -59,15 +58,28 @@ module.exports = {
                     this.pool.query(sql_text, [discord_id, timestamp, game_name]);
                 } else {
                     console.log(res.rows);
-                    let finish_time = res.rows[0][column_names.timestamp];
+                    let start_time = res.rows[0][column_names.timestamp];
+                    let time_streamed = timestamp - start_time;
                     sql_text = `DELETE FROM ${table_names.session_table}
                                 WHERE ${column_names.id}=$1`;
-                    this.pool.query(sql_text, [discord_id]);
+                    await this.pool.query(sql_text, [discord_id]);
                 }
             } catch (err) {
                 console.log(err);
             }
         };
+
+        // Drops all tables owned by this bot
+        this.cleanTables = async () => {
+            try {
+                Object.entries(table_names).forEach(async name => {
+                    await this.pool.query(`DROP TABLE IF EXISTS ${name}`);
+                });
+            } catch (err) {
+                throw err;
+            }
+            console.log('dropped all tables');
+        }
 
         // Adds a game to the table for a user and the playtime
         this.addGame = (discord_id, game_name, interval) => {
@@ -102,7 +114,7 @@ module.exports = {
                 return await this.pool.query(`
                     CREATE TABLE ${table_name}(
                         ${column_names.discord_id} VARCHAR (16) PRIMARY KEY,
-                        ${column_names.timestamp} TIMESTAMPTZ NOT NULL,
+                        ${column_names.timestamp} TIMESTAMP NOT NULL,
                         ${column_names.game_name} VARCHAR (255)
                     )
                 `);
@@ -127,6 +139,30 @@ module.exports = {
                 //crash? do something probably
             }
         }
+    },
+
+    // Converts the differences of two Date objects to the standard SQL INTERVAL 
+    // string, caps out at days
+    dateDiff: (start_date, end_date) => {
+        if (end_date < start_date) {
+            throw new Error('Start date must be before end date!');
+        }
+        let date_diff = end_date - start_date;
+        let seconds = Math.floor(date_diff / 1000);
+        let minutes = Math.floor(seconds / 60);
+        seconds = seconds % 60;
+        let hours = Math.floor(minutes / 60);
+        minutes = minutes % 60;
+        let days = Math.floor(hours / 24);
+        hours = hours % 24;
+
+
+        // why doesn't node.js have c string formatting >>:(
+        hours = hours.toString().padStart(2, '0');
+        minutes = minutes.toString().padStart(2, '0');
+        seconds = seconds.toString().padStart(2, '0');
+
+        return format('%d %s:%s:%s', days, hours, minutes, seconds);
     }
 }
 

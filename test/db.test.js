@@ -14,7 +14,9 @@ describe('DBClient', () => {
     func();
     describe('setup', ()=> {
         afterEach( async ()=> {
-            await client.query("DROP owned by ryuji");
+                Object.entries(db.table_names).forEach(async name => {
+                    await client.query(`DROP TABLE IF EXISTS ${name}`);
+                });
             let res = await client.query(`
 				SELECT table_name
 				FROM information_schema.tables
@@ -90,4 +92,31 @@ describe('DBClient', () => {
             
         });
     });
+});
+
+describe('dateDiff', () => {
+    it('should return 1 hour 56 min', () => {
+        let start = new Date('May 15, 2004 04:04:00');
+        let end = new Date('May 15, 2004 06:00:00');
+        let sol = "0 01:56:00";
+        assert.equal(sol, db.dateDiff(start, end));
+    });
+
+    it('should raise an error', () => {
+        let start = new Date('May 15, 2004 04:04:00');
+        let end = new Date('May 15, 2004 06:00:00');
+        try {
+            (db.dateDiff(end, start)) 
+            assert(1 == 2, "Failed to throw an error!");
+        } catch (err) {
+        }
+    });
+
+    it('should return 2 days 5 hours 36 minutes 43 seconds', () => {
+        let start = new Date('May 15, 2004 15:32:12');
+        let end = new Date('May 17, 2004 21:8:55');
+        let sol = "2 05:36:43";
+        assert.equal(sol, db.dateDiff(start, end));
+    });
+
 });
