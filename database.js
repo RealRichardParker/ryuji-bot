@@ -2,6 +2,7 @@ const { Pool, Client } = require('pg');
 const {format} = require('util');
 
 let col_names = {
+    game_prim_key: "id",
     id: "discord_id",
     timestamp: "timestamp",
     game_name: "game_name",
@@ -44,11 +45,11 @@ module.exports = {
             }
         };
 
-        // create new stream session if session_id doesn't exist, if session_id does, 
+        // create new stream session if session_id doesn't exist, if session_id does,
         // remove session from table and update total time played
         this.updateSession = async (discord_id, timestamp, game_name) => {
-            let sql_text = `SELECT ${col_names.timestamp} 
-                            FROM ${table_names.session_table} 
+            let sql_text = `SELECT ${col_names.timestamp}
+                            FROM ${table_names.session_table}
                             WHERE ${col_names.id}=$1`;
             let res = await this.pool.query(sql_text, [discord_id]);
             if (res.rowCount === 0) {
@@ -61,7 +62,8 @@ module.exports = {
                 let delete_text = `DELETE FROM ${table_names.session_table}
                                    WHERE ${col_names.id}=$1`;
                 await this.pool.query(delete_text, [discord_id]);
-                this.updateTime(discord_id, start_time, timestamp)
+                let interval = module.exports.dateDiff(start_time, timestamp);
+                this.updateTime(discord_id, interval);
             }
         };
 
@@ -78,20 +80,28 @@ module.exports = {
         }
 
         // Adds a game to the table for a user and the playtime
-        this.addGame = (discord_id, game_name, interval) => {
-        };
-
-        // Adds a game to the table for a user and the playtime
         this.updateGame = (discord_id, game_name, interval) => {
+            let sql_text = `INSERT INTO ${table_names.game_table}(${col_names.game_name},
+                            ${col_names.time_streamed}, ${col_names.id})
+                            VALUES($1, $2, $3)
+                            ON CONFLICT
+                            WHERE ${col_names.discord_id}=$3
+                            AND ${col_names.game_name}=$1
+                            DO UPDATE
+                            SET ${col_names.time_streamed}=EXCLUDED.${col_names.time_streamed}+$2`;
+
+            //let sql_text = `SELECT ${col_names.game_prim_key}
+            //                FROM ${table_names.game_table}
+            //                WHERE ${col_names.id} = $1`;
+            return this.pool.query(sql_text, [game_name, interval, discord_id]);
         };
 
-        this.updateTime = (discord_id, start_time, end_time) => {
+        this.updateTime = (discord_id, interval) => {
             let update_text = `INSERT INTO ${table_names.time_table}
-                               VALUES($1, $2)
+                               VALUES ($1, $2)
                                ON CONFLICT (${col_names.id})
-                               DO UPDATE 
-                               SET ${col_names.time_streamed} = EXCLUDED.${col_names.time_streamed}+$2`;
-            let interval = module.exports.dateDiff(start_time, end_time);
+                               DO UPDATE
+                               SET ${col_names.time_streamed} = EXCLUDED.${col_names.time_streamed} + $2`;
             return this.pool.query(update_text, [discord_id, interval]);
         }
 
@@ -104,8 +114,14 @@ module.exports = {
 
         this.getStreamTime = async (discord_id) => {
             let sql_text = `SELECT * FROM ${table_names.time_table}
-                            WHERE ${col_names}=$1`;
+                            WHERE ${col_names.id}=$1`;
             let res = await this.pool.query(sql_text, [discord_id]);
+            if( res.rowCount !== 0 ) {
+                return res.rows[0].time_streamed;
+            } else {
+                console.log('got an error!');
+                throw new Error(`discord_id ${discord_id} does not exist in the db!`);
+            }
         };
 
         this.getAllStreamTime = async () => {
@@ -134,7 +150,7 @@ module.exports = {
             } else if (table_name === table_names.game_table) {
                 return await this.pool.query(`
                     CREATE TABLE ${table_name}(
-                        id serial PRIMARY KEY,
+                        id SERIAL PRIMARY KEY,
                         ${col_names.game_name} VARCHAR (255) NOT NULL,
                         ${col_names.time_streamed} INTERVAL NOT NULL,
                         ${col_names.id} VARCHAR (16) NOT NULL
@@ -147,7 +163,7 @@ module.exports = {
         }
     },
 
-    // Converts the differences of two Date objects to the standard SQL INTERVAL 
+    // Converts the differences of two Date objects to the standard SQL INTERVAL
     // string, caps out at days
     dateDiff: (start_date, end_date) => {
         if (end_date < start_date) {
@@ -161,7 +177,6 @@ module.exports = {
         minutes = minutes % 60;
         let days = Math.floor(hours / 24);
         hours = hours % 24;
-
 
         // why doesn't node.js have c string formatting >>:(
         hours = hours.toString().padStart(2, '0');

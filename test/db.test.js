@@ -2,8 +2,11 @@ const assert = require('assert');
 const db = require('../database.js');
 const { Client } = require('pg');
 
-const test_id_1 = '1234567890'
-const test_id_2 = '0987654321'
+const test_id_1 = '1234567890';
+const test_id_2 = '0987654321';
+const test_game_1 = 'Persona 5: Royale';
+const test_game_2 = 'Dark Souls: Prepare to Die';
+
 
 let PostgresInterval = function(days, hours, minutes) {
     if (hours) this.hours = hours;
@@ -94,44 +97,87 @@ describe('DBClient', () => {
         });
     });
     describe('updateTime', () => {
-        let DBClient
+        let DBClient;
         beforeEach(async () => {
             DBClient = new db.dbClient();
             await DBClient.setup_db();
         });
+        after(async () => {
+            DBClient.cleanTables();
+        });
         it('add a new entry', async () => {
             let start = new Date('May 15, 2004 04:04:00');
             let end = new Date('May 15, 2004 06:00:00');
-            let result = await DBClient.updateTime(test_id_1, start, end);
+            let interval = db.dateDiff(start, end);
+            let result = await DBClient.updateTime(test_id_1, interval);
             
             let query_string = `SELECT * FROM ${db.table_names.time_table}
                                 WHERE ${db.col_names.id}=$1`
             let res = await client.query(query_string, [test_id_1]);
             
             assert.equal(1, res.rowCount);
-            let interval = res.rows[0][db.col_names.time_streamed];
+            let actual_interval = res.rows[0][db.col_names.time_streamed];
             
-            assert.equal(56, interval.minutes);
-            assert.equal(1, interval.hours);
+            assert.equal(56, actual_interval.minutes);
+            assert.equal(1, actual_interval.hours);
         });
         it('update existing entry', async () => {
             let query_string = `INSERT INTO ${db.table_names.time_table}
                                 VALUES ($1, $2)`;
             let start = new Date('May 15, 2004 04:04:00');
             let end = new Date('May 15, 2004 06:00:00');
-            await client.query(query_string, [test_id_1, db.dateDiff(start, end)]);
+            let interval = db.dateDiff(start, end);
+            let result;
+            await client.query(query_string, [test_id_1, interval]);
 
-            await DBClient.updateTime(test_id_1, start, end);
+            await DBClient.updateTime(test_id_1, interval);
 
             query_string = `SELECT * FROM ${db.table_names.time_table}
-                                WHERE ${db.col_names.id}=$1`
+                            WHERE ${db.col_names.id} = $1`;
             let res = await client.query(query_string, [test_id_1]);
+            console.log('after update, see if selecct was succesful');
             
             assert.equal(1, res.rowCount);
-            let interval = res.rows[0][db.col_names.time_streamed];
+            let actual_interval = res.rows[0][db.col_names.time_streamed];
 
-            assert.equal(52, interval.minutes);
-            assert.equal(3, interval.hours);
+            assert.equal(52, actual_interval.minutes);
+            assert.equal(3, actual_interval.hours);
+        });
+    });
+    describe('getStreamTime', () => {
+        let DBClient;
+        beforeEach(async () => {
+            DBClient = new db.dbClient();
+            await DBClient.setup_db();
+        });
+        it('throws an error when getting a nonexistent entry', () => {
+            assert.rejects( async () => {
+                DBClient.getStreamTime(test_id_1);
+            }, {
+                name: 'Error',
+                message: `discord_id ${test_id_1} does not exist in the db!`
+            });
+        });
+        it('gets an existing entry', async () => {
+            let start = new Date('May 15, 2004 04:04:00');
+            let end = new Date('May 15, 2004 06:00:00');
+            let interval = db.dateDiff(start, end);
+            await DBClient.updateTime(test_id_1, interval);
+            
+            let actual = await DBClient.getStreamTime(test_id_1);
+            
+            assert.equal(56, actual.minutes);
+            assert.equal(1, actual.hours);
+        });
+    });
+    describe('updateGame', () => {
+        let DBClient;
+        beforeEach(async () => {
+            DBClient = new db.dbClient();
+            await DBClient.setup_db();
+        });
+        xit('add a new entry', async () => {
+            DBClient.updateGame(test_id_1, test_game_1, );
         });
     });
 });
