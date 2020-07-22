@@ -80,19 +80,28 @@ module.exports = {
         }
 
         // Adds a game to the table for a user and the playtime
-        this.updateGame = (discord_id, game_name, interval) => {
-            let sql_text = `INSERT INTO ${table_names.game_table}(${col_names.game_name},
-                            ${col_names.time_streamed}, ${col_names.id})
-                            VALUES($1, $2, $3)
-                            ON CONFLICT
-                            WHERE ${col_names.discord_id}=$3
-                            AND ${col_names.game_name}=$1
-                            DO UPDATE
-                            SET ${col_names.time_streamed}=EXCLUDED.${col_names.time_streamed}+$2`;
+        this.updateGame = async (discord_id, game_name, interval) => {
+            let select_text = `SELECT *
+                               FROM ${table_names.game_table}
+                               WHERE ${col_names.id}=$1 
+                               AND ${col_names.game_name}=$2`;
+            let select_res = await this.pool.query(select_text, [discord_id, game_name]);
 
-            //let sql_text = `SELECT ${col_names.game_prim_key}
-            //                FROM ${table_names.game_table}
-            //                WHERE ${col_names.id} = $1`;
+            if (select_res.rowCount === 0) {
+                // insert new item
+                let insert_text = `INSERT INTO ${table_names.game_table}
+                                   (${col_names.game_name}, ${col_names.time_streamed}, ${col_names.id})
+                                   VALUES($1, $2, $3)`;
+                return this.pool.query(insert_text, [game_name, interval, discord_id]);
+                
+            } else {
+                let prim_key = select_res.rows[0].id;
+                let update_text = `UPDATE ${table_names.game_table}
+                                   SET ${col_names.time_streamed} = ${col_names.time_streamed}+$1
+                                   WHERE ${col_names.game_prim_key} = $2`;
+                return this.pool.query(update_text, [interval, prim_key]);
+            }
+
             return this.pool.query(sql_text, [game_name, interval, discord_id]);
         };
 
@@ -115,12 +124,16 @@ module.exports = {
         this.getStreamTime = async (discord_id) => {
             let sql_text = `SELECT * FROM ${table_names.time_table}
                             WHERE ${col_names.id}=$1`;
-            let res = await this.pool.query(sql_text, [discord_id]);
-            if( res.rowCount !== 0 ) {
-                return res.rows[0].time_streamed;
-            } else {
-                console.log('got an error!');
-                throw new Error(`discord_id ${discord_id} does not exist in the db!`);
+            try {
+                let res = await this.pool.query(sql_text, [discord_id]);
+                if( res.rowCount !== 0 ) {
+                    return res.rows[0].time_streamed;
+                } else {
+                    console.log('got an error!');
+                    throw new Error(`discord_id ${discord_id} does not exist in the db!`);
+                }
+            } catch (err) {
+                //bad design but uhhhh
             }
         };
 

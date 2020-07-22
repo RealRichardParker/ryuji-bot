@@ -6,6 +6,8 @@ const test_id_1 = '1234567890';
 const test_id_2 = '0987654321';
 const test_game_1 = 'Persona 5: Royale';
 const test_game_2 = 'Dark Souls: Prepare to Die';
+const start = new Date('May 15, 2004 04:04:00');
+const end = new Date('May 15, 2004 06:00:00');
 
 
 let PostgresInterval = function(days, hours, minutes) {
@@ -106,8 +108,6 @@ describe('DBClient', () => {
             DBClient.cleanTables();
         });
         it('add a new entry', async () => {
-            let start = new Date('May 15, 2004 04:04:00');
-            let end = new Date('May 15, 2004 06:00:00');
             let interval = db.dateDiff(start, end);
             let result = await DBClient.updateTime(test_id_1, interval);
             
@@ -124,8 +124,6 @@ describe('DBClient', () => {
         it('update existing entry', async () => {
             let query_string = `INSERT INTO ${db.table_names.time_table}
                                 VALUES ($1, $2)`;
-            let start = new Date('May 15, 2004 04:04:00');
-            let end = new Date('May 15, 2004 06:00:00');
             let interval = db.dateDiff(start, end);
             let result;
             await client.query(query_string, [test_id_1, interval]);
@@ -151,16 +149,13 @@ describe('DBClient', () => {
             await DBClient.setup_db();
         });
         it('throws an error when getting a nonexistent entry', () => {
-            assert.rejects( async () => {
-                DBClient.getStreamTime(test_id_1);
-            }, {
-                name: 'Error',
-                message: `discord_id ${test_id_1} does not exist in the db!`
+            DBClient.getStreamTime(test_id_1).then( () => {
+                assert(1 == 2, 'Did not throw error when should have!');
+            }).catch(() => {
+                //lmao what is good code
             });
         });
         it('gets an existing entry', async () => {
-            let start = new Date('May 15, 2004 04:04:00');
-            let end = new Date('May 15, 2004 06:00:00');
             let interval = db.dateDiff(start, end);
             await DBClient.updateTime(test_id_1, interval);
             
@@ -176,23 +171,63 @@ describe('DBClient', () => {
             DBClient = new db.dbClient();
             await DBClient.setup_db();
         });
-        xit('add a new entry', async () => {
-            DBClient.updateGame(test_id_1, test_game_1, );
+        it('add a new entry, then update it', async () => {
+            let interval = db.dateDiff(start, end);
+            await DBClient.updateGame(test_id_1, test_game_1, interval);
+            
+            let sql_text = `SELECT * 
+                            FROM ${db.table_names.game_table}
+                            WHERE ${db.col_names.id} = $1
+                            AND ${db.col_names.game_name} = $2`;
+            let res = await client.query(sql_text, [test_id_1, test_game_1]);
+            assert.equal(1, res.rowCount);
+            let res_obj = res.rows[0];
+
+            assert.equal(test_id_1, res_obj.discord_id);
+            assert.equal(test_game_1, res_obj.game_name);
+            assert.equal(56, res_obj.time_streamed.minutes);
+            assert.equal(1, res_obj.time_streamed.hours);
+
+            await DBClient.updateGame(test_id_1,  test_game_1, interval);
+
+            res = await client.query(sql_text, [test_id_1, test_game_1]);
+            res_obj = res.rows[0];
+
+            assert.equal(test_id_1, res_obj.discord_id);
+            assert.equal(test_game_1, res_obj.game_name);
+            assert.equal(52, res_obj.time_streamed.minutes);
+            assert.equal(3, res_obj.time_streamed.hours);
+            
+        });
+    });
+    describe('getUserGames', () => {
+        let DBClient;
+        beforeEach(async () => {
+            DBClient = new db.dbClient();
+            await DBClient.setup_db();
+        });
+        it('should get game time', async () => {
+            let interval = db.dateDiff(start, end);
+            await DBClient.updateGame(test_id_1, test_game_1, interval);
+
+            let res = await DBClient.getUserGames(test_id_1);
+
+            assert.equal(test_id_1, res[0][db.col_names.id]);
+            assert.equal(test_game_1, res[0][db.col_names.game_name]);
+            let res_interval = res[0][db.col_names.time_streamed];
+            assert.equal(1, res_interval.hours);
+            assert.equal(56, res_interval.minutes);
         });
     });
 });
 
 describe('dateDiff', () => {
     it('should return 1 hour 56 min', () => {
-        let start = new Date('May 15, 2004 04:04:00');
-        let end = new Date('May 15, 2004 06:00:00');
         let sol = "0 01:56:00";
         assert.equal(sol, db.dateDiff(start, end));
     });
 
     it('should raise an error', () => {
-        let start = new Date('May 15, 2004 04:04:00');
-        let end = new Date('May 15, 2004 06:00:00');
         try {
             (db.dateDiff(end, start)) 
             assert(1 == 2, "Failed to throw an error!");
@@ -201,10 +236,10 @@ describe('dateDiff', () => {
     });
 
     it('should return 2 days 5 hours 36 minutes 43 seconds', () => {
-        let start = new Date('May 15, 2004 15:32:12');
-        let end = new Date('May 17, 2004 21:8:55');
+        let start_2 = new Date('May 15, 2004 15:32:12');
+        let end_2 = new Date('May 17, 2004 21:8:55');
         let sol = "2 05:36:43";
-        assert.equal(sol, db.dateDiff(start, end));
+        assert.equal(sol, db.dateDiff(start_2, end_2));
     });
 
 });
