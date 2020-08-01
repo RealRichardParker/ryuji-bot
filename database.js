@@ -105,6 +105,7 @@ module.exports = {
             return this.pool.query(sql_text, [game_name, interval, discord_id]);
         };
 
+        // updates the total time for a user
         this.updateTime = (discord_id, interval) => {
             let update_text = `INSERT INTO ${table_names.time_table}
                                VALUES ($1, $2)
@@ -114,6 +115,7 @@ module.exports = {
             return this.pool.query(update_text, [discord_id, interval]);
         }
 
+        // list all games and their stream times for a user
         this.getUserGames = async (discord_id) => {
             let sql_text = `SELECT * FROM ${table_names.game_table}
                             WHERE ${col_names.id}=$1`;
@@ -121,6 +123,7 @@ module.exports = {
             return res.rows;
         };
 
+        // Get total stream time for a user
         this.getStreamTime = async (discord_id) => {
             let sql_text = `SELECT * FROM ${table_names.time_table}
                             WHERE ${col_names.id}=$1`;
@@ -137,6 +140,7 @@ module.exports = {
             }
         };
 
+        // Get all the stream times for all users
         this.getAllStreamTime = async () => {
             let res = await this.pool.query(`SELECT * FROM ${table_names.stream_time}`);
             return res.rows;
