@@ -12,7 +12,7 @@ module.exports = {
         let output = {
             data: {
                 isStreaming: newStream,
-                timeStamp: Date.now()
+                timeStamp: Date.now(),
             },
             bool: false
         }
@@ -54,10 +54,13 @@ discordClient.on('voiceStateUpdate', (oldState, newState) => {
     let oldMember = oldState.member;
     let newMember = newState.member;
     let result = module.exports.shouldRecord(oldState, newState);
-    console.dir(newState);
-    if (result.bool) {
+    if (result.bool && result.data.isStreaming) {
         console.log('time to save stuff in the db!');
+        console.log('PRESENCE:');
+        console.dir(newState.guild.member(newState.id).presence);
+    } else if (result.bool && !result.data.isStreaming) {
     }
+
 });
 
 discordClient.on('message', msg => {
