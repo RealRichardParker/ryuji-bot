@@ -55,7 +55,7 @@ module.exports = {
             if (res.rowCount === 0) {
                 sql_text = `INSERT INTO ${table_names.session_table}
                             VALUES ($1, $2, $3)`;
-                this.pool.query(sql_text, [discord_id, timestamp, game_name]);
+                await this.pool.query(sql_text, [discord_id, timestamp, game_name]);
             } else {
                 //console.log(res.rows);
                 let start_time = res.rows[0][col_names.timestamp];
@@ -63,7 +63,8 @@ module.exports = {
                                    WHERE ${col_names.id}=$1`;
                 await this.pool.query(delete_text, [discord_id]);
                 let interval = module.exports.dateDiff(start_time, timestamp);
-                this.updateTime(discord_id, interval);
+                await this.updateTime(discord_id, interval);
+                await this.updateGame(discord_id,  game_name, interval);
             }
         };
 

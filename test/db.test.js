@@ -9,13 +9,6 @@ const test_game_2 = 'Dark Souls: Prepare to Die';
 const start = new Date('May 15, 2004 04:04:00');
 const end = new Date('May 15, 2004 06:00:00');
 
-
-let PostgresInterval = function(days, hours, minutes) {
-    if (hours) this.hours = hours;
-    if (days) this.days = days;
-    if (minutes) this.minutes = minutes;
-}
-
 describe('DBClient', () => {
     let client = new Client({
         user: 'ryuji',
@@ -217,6 +210,69 @@ describe('DBClient', () => {
             let res_interval = res[0][db.col_names.time_streamed];
             assert.equal(1, res_interval.hours);
             assert.equal(56, res_interval.minutes);
+        });
+    });
+    describe('updateSession', () => {
+        let DBClient;
+        beforeEach(async () => {
+            DBClient = new db.dbClient();
+            await DBClient.setup_db();
+        });
+        it('should update the session table', async () => {
+            await DBClient.updateSession(test_id_1, start, test_game_1);
+
+            let sql_text = `SELECT * 
+                            FROM ${db.table_names.session_table}
+                            WHERE ${db.col_names.id} = $1`;
+            let res = await client.query(sql_text, [test_id_1]);
+            assert.equal(1, res.rowCount);
+
+            let row = res.rows[0];
+            assert.equal(test_id_1, row[db.col_names.id]);
+            assert.equal(start.getTime(), row[db.col_names.timestamp].getTime());
+            assert.equal(test_game_1, row[db.col_names.game_name]);
+            
+        });
+        it('should update the session table, then the session and game table', async () => {
+            await DBClient.updateSession(test_id_1, start, test_game_1);
+
+            let sql_text = `SELECT * 
+                            FROM ${db.table_names.session_table}
+                            WHERE ${db.col_names.id} = $1`;
+            let res = await client.query(sql_text, [test_id_1]);
+            assert.equal(1, res.rowCount);
+
+            let row = res.rows[0];
+            assert.equal(test_id_1, row[db.col_names.id]);
+            assert.equal(start.getTime(), row[db.col_names.timestamp].getTime());
+            assert.equal(test_game_1, row[db.col_names.game_name]);
+            
+            await DBClient.updateSession(test_id_1, end, test_game_1);
+
+            sql_text = `SELECT * 
+                        FROM ${db.table_names.session_table}
+                        WHERE ${db.col_names.id} = $1`;
+            res = await client.query(sql_text, [test_id_1]);
+            assert.equal(0, res.rowCount);
+
+            sql_text = `SELECT * 
+                        FROM ${db.table_names.game_table}
+                        WHERE ${db.col_names.id} = $1`;
+            res = await client.query(sql_text, [test_id_1]);
+            assert.equal(1, res.rowCount);
+            row = res.rows[0];
+            assert.equal(test_game_1, row[db.col_names.game_name]);
+            assert.equal(1, row[db.col_names.time_streamed].hours)
+            assert.equal(56, row[db.col_names.time_streamed].minutes)
+
+            sql_text = `SELECT * 
+                        FROM ${db.table_names.time_table}
+                        WHERE ${db.col_names.id} = $1`;
+            res = await client.query(sql_text, [test_id_1]);
+            assert.equal(1, res.rowCount);
+            row = res.rows[0];
+            assert.equal(1, row[db.col_names.time_streamed].hours)
+            assert.equal(56, row[db.col_names.time_streamed].minutes)
         });
     });
 });
