@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const assert = require('assert');
 const db = require('../database.js');
 const { Client } = require('pg');
@@ -10,13 +12,7 @@ const start = new Date('May 15, 2004 04:04:00');
 const end = new Date('May 15, 2004 06:00:00');
 
 describe('DBClient', () => {
-    let client = new Client({
-        user: 'ryuji',
-        password: 'for_real_ryuji!',
-        host: 'localhost',
-        port: '5432',
-        database: 'testdb'
-    });
+    let client = new Client();
     let func = async () => await client.connect();
     func();
     afterEach( async ()=> {
