@@ -11,7 +11,7 @@
   "dependencies": {
     "discord.js": "^12.2.0",
     "dotenv": "^8.2.0",
-    "mocha": "^8.0.1",
+    "mocha": "^8.4.0",
     "pg": "^8.3.0"
   }
 }
